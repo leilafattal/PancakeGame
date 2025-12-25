@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Pancake Stack Frenzy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #FFF8E7 0%, #FFE5B4 100%);
+            overflow: hidden;
+            touch-action: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .ui-element {
+            pointer-events: auto;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            font-weight: bold;
+            color: #8B4513;
+            text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
+            pointer-events: none;
+        }
+
+        #menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #FFF8E7 0%, #FFE5B4 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
+        #menu-screen.hidden {
+            display: none;
+        }
+
+        .game-title {
+            font-size: 48px;
+            font-weight: bold;
+            color: #8B4513;
+            margin-bottom: 60px;
+            text-align: center;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .menu-button {
+            background: linear-gradient(135deg, #FFD166 0%, #FFB627 100%);
+            border: 3px solid #8B4513;
+            border-radius: 20px;
+            padding: 20px 50px;
+            margin: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #8B4513;
+            cursor: pointer;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+            transition: transform 0.1s, box-shadow 0.1s;
+            min-width: 250px;
+            text-align: center;
+        }
+
+        .menu-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .menu-button:active {
+            transform: scale(0.95) translateY(0);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+        }
+
+        #game-over-screen.visible {
+            display: flex;
+        }
+
+        .game-over-panel {
+            background: #FFF8E7;
+            border: 4px solid #8B4513;
+            border-radius: 30px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-over-title {
+            font-size: 36px;
+            font-weight: bold;
+            color: #C1121F;
+            margin-bottom: 20px;
+        }
+
+        .final-score {
+            font-size: 48px;
+            font-weight: bold;
+            color: #8B4513;
+            margin: 20px 0;
+        }
+
+        .high-score-label {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .small-button {
+            background: linear-gradient(135deg, #FFD166 0%, #FFB627 100%);
+            border: 3px solid #8B4513;
+            border-radius: 15px;
+            padding: 15px 40px;
+            margin: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #8B4513;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .small-button:active {
+            transform: scale(0.95);
+        }
+
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #FFF8E7 0%, #FFE5B4 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 300;
+        }
+
+        #loading-screen.hidden {
+            display: none;
+        }
+
+        .loading-text {
+            font-size: 24px;
+            color: #8B4513;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="game-title">Pancake Stack Frenzy</div>
+            <div class="loading-text">Loading...</div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="menu-screen" class="hidden">
+            <h1 class="game-title">🥞 Pancake Stack<br>Frenzy</h1>
+            <button class="menu-button ui-element" id="play-button">PLAY</button>
+            <button class="menu-button ui-element" id="decorate-button">DECORATE</button>
+            <button class="menu-button ui-element" id="settings-button">SETTINGS</button>
+            <div style="margin-top: 20px; font-size: 18px; color: #8B4513;">
+                <span>Best: <strong id="menu-high-score">0</strong> pancakes</span>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen">
+            <div class="game-over-panel">
+                <div class="game-over-title">Game Over!</div>
+                <div class="final-score" id="final-score">0</div>
+                <div class="high-score-label">
+                    <span id="new-record" style="display: none; color: #C1121F; font-weight: bold;">🎉 NEW RECORD! 🎉</span>
+                    <span id="best-score-label">Best: <strong id="best-score">0</strong></span>
+                </div>
+                <div style="margin-top: 10px; color: #666;">
+                    You stacked <strong id="pancake-count">0</strong> pancakes!
+                </div>
+                <div style="margin-top: 30px;">
+                    <button class="small-button ui-element" id="replay-button">PLAY AGAIN</button>
+                    <button class="small-button ui-element" id="menu-button">HOME</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- UI Overlay -->
+        <div id="ui-overlay">
+            <div id="score-display">Pancakes: 0</div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/game/main.js"></script>
+</body>
+</html>

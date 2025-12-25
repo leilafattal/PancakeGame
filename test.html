@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #FFF8E7 0%, #FFE5B4 100%);
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 { color: #8B4513; }
+        .status { margin: 20px 0; font-size: 18px; }
+        .loading { color: #666; }
+        .success { color: #2ecc71; font-weight: bold; }
+        .error { color: #e74c3c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🥞 Pancake Stack Frenzy</h1>
+        <div id="status" class="status loading">Loading libraries...</div>
+        <div id="details"></div>
+    </div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        const statusEl = document.getElementById('status');
+        const detailsEl = document.getElementById('details');
+
+        try {
+            statusEl.textContent = 'Loading Three.js...';
+            const THREE = await import('three');
+            detailsEl.innerHTML += '<div class="success">✓ Three.js loaded successfully</div>';
+
+            statusEl.textContent = 'Loading Cannon.js...';
+            const CANNON = await import('cannon-es');
+            detailsEl.innerHTML += '<div class="success">✓ Cannon.js loaded successfully</div>';
+
+            statusEl.textContent = '✓ All libraries loaded!';
+            statusEl.className = 'status success';
+
+            setTimeout(() => {
+                window.location.href = 'index-standalone.html';
+            }, 2000);
+
+        } catch (error) {
+            statusEl.textContent = '✗ Error loading libraries';
+            statusEl.className = 'status error';
+            detailsEl.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            console.error(error);
+        }
+    </script>
+</body>
+</html>
