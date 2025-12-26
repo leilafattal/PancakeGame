@@ -72,7 +72,7 @@ class ClassicStackScene {
 
     createDropLine() {
         // Create a red line to show where pancakes drop from
-        const lineWidth = 8; // Wide enough to span the play area
+        const lineWidth = 16; // Wide enough to span the wider play area
         const lineGeometry = new THREE.BoxGeometry(lineWidth, 0.05, 0.1);
         const lineMaterial = new THREE.MeshBasicMaterial({
             color: 0xff0000,
@@ -104,7 +104,7 @@ class ClassicStackScene {
         const wallHeight = 30; // Tall enough for high stacks
         const wallThickness = 0.5;
         const wallDepth = 12;
-        const wallDistance = 4; // Distance from center
+        const wallDistance = 8; // Distance from center - wide enough to not be too protective
 
         // Bouncy wall material
         const wallPhysicsMaterial = new CANNON.Material({
@@ -220,8 +220,8 @@ class ClassicStackScene {
             const deltaX = touch.clientX - this.dragStartX;
 
             // Convert screen space to world space
-            this.swayPosition = (deltaX / window.innerWidth) * 10;
-            this.swayPosition = Math.max(-4, Math.min(4, this.swayPosition)); // Clamp
+            this.swayPosition = (deltaX / window.innerWidth) * 14;
+            this.swayPosition = Math.max(-7, Math.min(7, this.swayPosition)); // Clamp to wall range
         };
 
         // Touch end for drag mode
@@ -407,8 +407,8 @@ class ClassicStackScene {
         if (this.currentPancake && this.controlMode === 'tap' && !this.isDragging) {
             this.swayPosition += this.swaySpeed * this.swayDirection * (1 / 60);
 
-            // Bounce at edges
-            if (Math.abs(this.swayPosition) > 3) {
+            // Bounce at edges (wider range to match wider walls)
+            if (Math.abs(this.swayPosition) > 6) {
                 this.swayDirection *= -1;
             }
         }
@@ -425,12 +425,15 @@ class ClassicStackScene {
 
     checkForGroundCollision() {
         // Check if any stacked pancake (except the base) has fallen to the ground
-        // Ground is at y = 0, pancake center would be below pancakeHeight/2 if touching
-        const groundLevel = this.pancakeHeight / 2 - 0.05; // Small buffer
+        // Ground surface is at y = 0, so a pancake lying flat on the table
+        // would have its center at pancakeHeight/2 (0.125)
+        // We detect collision if pancake is at or near table level
+        const groundLevel = this.pancakeHeight / 2 + 0.1; // Slightly above table surface
 
         for (let i = 1; i < this.stackedPancakes.length; i++) {
             const { body } = this.stackedPancakes[i];
-            if (body.position.y < groundLevel) {
+            // Check if pancake is at table level (touching or very close to ground)
+            if (body.position.y <= groundLevel) {
                 console.log('Pancake touched the ground!', body.position.y);
                 return true;
             }
