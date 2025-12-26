@@ -72,7 +72,7 @@ class ClassicStackScene {
 
     createDropLine() {
         // Create a red line to show where pancakes drop from
-        const lineWidth = 16; // Wide enough to span the wider play area
+        const lineWidth = 8; // Wide enough to span the play area between walls
         const lineGeometry = new THREE.BoxGeometry(lineWidth, 0.05, 0.1);
         const lineMaterial = new THREE.MeshBasicMaterial({
             color: 0xff0000,
@@ -226,8 +226,8 @@ class ClassicStackScene {
             const deltaX = touch.clientX - this.dragStartX;
 
             // Convert screen space to world space
-            this.swayPosition = (deltaX / window.innerWidth) * 14;
-            this.swayPosition = Math.max(-7, Math.min(7, this.swayPosition)); // Clamp to wall range
+            this.swayPosition = (deltaX / window.innerWidth) * 6;
+            this.swayPosition = Math.max(-2.5, Math.min(2.5, this.swayPosition)); // Clamp within wall bounds
         };
 
         // Touch end for drag mode
@@ -413,8 +413,8 @@ class ClassicStackScene {
         if (this.currentPancake && this.controlMode === 'tap' && !this.isDragging) {
             this.swayPosition += this.swaySpeed * this.swayDirection * (1 / 60);
 
-            // Bounce at edges (wider range to match wider walls)
-            if (Math.abs(this.swayPosition) > 6) {
+            // Bounce at edges - stay within wall bounds (walls at 4, pancake radius ~1.2)
+            if (Math.abs(this.swayPosition) > 2.5) {
                 this.swayDirection *= -1;
             }
         }
