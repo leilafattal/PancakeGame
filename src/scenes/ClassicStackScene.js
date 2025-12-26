@@ -249,47 +249,23 @@ class ClassicStackScene {
     }
 
     checkStackStability() {
-        // Check if any pancake has fallen off the stack or hit the ground
+        // Stack is stable as long as pancakes haven't fallen to the ground
+        // Ground collision is checked continuously in update(), so here we just
+        // verify the stack hasn't drifted too far horizontally
+
+        // Check if any pancake is way off to the side (sliding off)
         for (let i = 1; i < this.stackedPancakes.length; i++) {
             const { body } = this.stackedPancakes[i];
-
-            // If a pancake fell below the base, it's a collapse
-            if (body.position.y < 0) {
-                return false;
-            }
-
-            // If a pancake is way off to the side (more than 1.5x radius from center)
             const horizontalOffset = Math.sqrt(body.position.x ** 2 + body.position.z ** 2);
-            if (horizontalOffset > this.pancakeRadius * 1.5) {
+
+            // If pancake center is more than 2x radius from center, it's falling off
+            if (horizontalOffset > this.pancakeRadius * 2) {
                 return false;
             }
         }
 
-        // Calculate center of mass for the whole stack
-        let totalMass = 0;
-        let centerOfMass = new CANNON.Vec3(0, 0, 0);
-
-        this.stackedPancakes.forEach(({ body }) => {
-            if (body.mass > 0) {
-                totalMass += body.mass;
-                centerOfMass.x += body.position.x * body.mass;
-                centerOfMass.y += body.position.y * body.mass;
-                centerOfMass.z += body.position.z * body.mass;
-            }
-        });
-
-        if (totalMass > 0) {
-            centerOfMass.x /= totalMass;
-            centerOfMass.y /= totalMass;
-            centerOfMass.z /= totalMass;
-        }
-
-        // Calculate tilt (horizontal offset from base)
-        const horizontalOffset = Math.sqrt(centerOfMass.x ** 2 + centerOfMass.z ** 2);
-        this.wobbleAngle = horizontalOffset;
-
-        // Check if center of mass exceeds collapse threshold
-        return horizontalOffset < this.collapseThreshold;
+        // Stack is stable - pancakes can be off-center as long as they don't fall
+        return true;
     }
 
     triggerCollapse() {
@@ -320,6 +296,12 @@ class ClassicStackScene {
     update() {
         if (!this.isPlaying) return;
 
+        // Check if any pancake has fallen to the ground (touched the table)
+        if (this.checkForGroundCollision()) {
+            this.triggerCollapse();
+            return;
+        }
+
         // Update current pancake sway (if in tap mode)
         if (this.currentPancake && this.controlMode === 'tap' && !this.isDragging) {
             this.swayPosition += this.swaySpeed * this.swayDirection * (1 / 60);
@@ -338,6 +320,21 @@ class ClassicStackScene {
 
         // Continue update loop
         requestAnimationFrame(() => this.update());
+    }
+
+    checkForGroundCollision() {
+        // Check if any stacked pancake (except the base) has fallen to the ground
+        // Ground is at y = 0, pancake center would be below pancakeHeight/2 if touching
+        const groundLevel = this.pancakeHeight / 2 - 0.05; // Small buffer
+
+        for (let i = 1; i < this.stackedPancakes.length; i++) {
+            const { body } = this.stackedPancakes[i];
+            if (body.position.y < groundLevel) {
+                console.log('Pancake touched the ground!', body.position.y);
+                return true;
+            }
+        }
+        return false;
     }
 
     destroy() {
