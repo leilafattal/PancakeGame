@@ -104,7 +104,7 @@ class ClassicStackScene {
         const wallHeight = 30; // Tall enough for high stacks
         const wallThickness = 0.5;
         const wallDepth = 12;
-        const wallDistance = 8; // Distance from center - wide enough to not be too protective
+        const wallDistance = 12; // Distance from center - far enough to not interfere with gameplay
 
         // Bouncy wall material
         const wallPhysicsMaterial = new CANNON.Material({
@@ -427,14 +427,15 @@ class ClassicStackScene {
         // Check if any stacked pancake (except the base) has fallen to the ground
         // Ground surface is at y = 0, so a pancake lying flat on the table
         // would have its center at pancakeHeight/2 (0.125)
-        // We detect collision if pancake is at or near table level
-        const groundLevel = this.pancakeHeight / 2 + 0.1; // Slightly above table surface
+        // The base pancake sits at pancakeHeight/2, so any other pancake at that level = game over
+        // We use a threshold slightly above the base pancake height to catch fallen pancakes
+        const groundLevel = this.pancakeHeight + 0.05; // Just above one pancake height
 
         for (let i = 1; i < this.stackedPancakes.length; i++) {
             const { body } = this.stackedPancakes[i];
-            // Check if pancake is at table level (touching or very close to ground)
+            // Check if pancake is at or below table level (not stacked properly)
             if (body.position.y <= groundLevel) {
-                console.log('Pancake touched the ground!', body.position.y);
+                console.log('Pancake touched the ground!', body.position.y, 'threshold:', groundLevel);
                 return true;
             }
         }
