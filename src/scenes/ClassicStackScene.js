@@ -104,7 +104,7 @@ class ClassicStackScene {
         const wallHeight = 30; // Tall enough for high stacks
         const wallThickness = 0.5;
         const wallDepth = 12;
-        const wallDistance = 12; // Distance from center - far enough to not interfere with gameplay
+        const wallDistance = 6; // Distance from center - close enough to catch flying pancakes but not affect the stack
 
         // Bouncy wall material
         const wallPhysicsMaterial = new CANNON.Material({
