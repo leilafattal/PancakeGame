@@ -34,10 +34,25 @@ class GameEngine {
 
     setupScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xFFF8E7);
 
-        // Add fog for depth
-        this.scene.fog = new THREE.Fog(0xFFF8E7, 20, 100);
+        // Load background image
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+            // Use base path for production (GitHub Pages) or relative for dev
+            import.meta.env.BASE_URL + 'assets/images/background.jpeg',
+            (texture) => {
+                this.scene.background = texture;
+                console.log('Background image loaded!');
+            },
+            undefined,
+            (error) => {
+                console.warn('Could not load background image, using fallback color:', error);
+                this.scene.background = new THREE.Color(0xFFF8E7);
+            }
+        );
+
+        // Add fog for depth (lighter to work with background image)
+        this.scene.fog = new THREE.Fog(0xFFFFFF, 30, 150);
     }
 
     setupCamera() {
