@@ -115,6 +115,11 @@ class GameEngine {
 
         // Allow physics bodies to sleep when not moving
         this.physicsWorld.allowSleep = true;
+
+        // Create shared physics materials for consistent contact behavior
+        this.pancakePhysicsMaterial = new CANNON.Material('pancake');
+        this.pancakePhysicsMaterial.friction = 0.8;
+        this.pancakePhysicsMaterial.restitution = 0.1;
     }
 
     start() {
@@ -200,15 +205,12 @@ class GameEngine {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
 
-        // Cannon.js physics body
+        // Cannon.js physics body - use shared material for consistent contact behavior
         const shape = new CANNON.Cylinder(radius, radius, height, 32);
         const body = new CANNON.Body({
             mass: 1,
             shape: shape,
-            material: new CANNON.Material({
-                friction: 0.8,
-                restitution: 0.1 // Low bounce
-            })
+            material: this.pancakePhysicsMaterial
         });
 
         return { mesh, body };

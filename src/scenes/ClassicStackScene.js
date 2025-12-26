@@ -147,13 +147,19 @@ class ClassicStackScene {
         this.gameEngine.physicsWorld.addBody(rightWallBody);
         this.walls.push({ mesh: rightWallMesh, body: rightWallBody });
 
-        // Create contact material for pancake-wall collisions
-        const pancakeMaterial = new CANNON.Material();
-        const pancakeWallContact = new CANNON.ContactMaterial(pancakeMaterial, wallPhysicsMaterial, {
-            friction: 0.1,
-            restitution: this.wallBounce
-        });
+        // Create contact material for pancake-wall collisions using the shared pancake material
+        const pancakeWallContact = new CANNON.ContactMaterial(
+            this.gameEngine.pancakePhysicsMaterial,
+            wallPhysicsMaterial,
+            {
+                friction: 0.1,
+                restitution: this.wallBounce // High bounce off walls
+            }
+        );
         this.gameEngine.physicsWorld.addContactMaterial(pancakeWallContact);
+
+        // Store wall material for reference
+        this.wallPhysicsMaterial = wallPhysicsMaterial;
     }
 
     createBasePancake() {
