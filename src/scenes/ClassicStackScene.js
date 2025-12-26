@@ -424,18 +424,37 @@ class ClassicStackScene {
     }
 
     checkForGroundCollision() {
-        // Check if any stacked pancake (except the base) has fallen to the ground
-        // Ground surface is at y = 0, so a pancake lying flat on the table
-        // would have its center at pancakeHeight/2 (0.125)
-        // The base pancake sits at pancakeHeight/2, so any other pancake at that level = game over
-        // We use a threshold slightly above the base pancake height to catch fallen pancakes
-        const groundLevel = this.pancakeHeight + 0.05; // Just above one pancake height
+        // Check if any part of a stacked pancake (except the base) touches the ground
+        // We need to account for tilted pancakes where the edge touches the table
+        // even if the center is still above ground level
+
+        const groundY = 0; // Table surface
 
         for (let i = 1; i < this.stackedPancakes.length; i++) {
             const { body } = this.stackedPancakes[i];
-            // Check if pancake is at or below table level (not stacked properly)
-            if (body.position.y <= groundLevel) {
-                console.log('Pancake touched the ground!', body.position.y, 'threshold:', groundLevel);
+
+            // Get the pancake's orientation (tilt)
+            const quaternion = body.quaternion;
+
+            // Calculate the "up" vector of the pancake after rotation
+            // A flat pancake has up = (0, 1, 0)
+            const up = new CANNON.Vec3(0, 1, 0);
+            quaternion.vmult(up, up);
+
+            // Calculate how much the pancake is tilted
+            // up.y = 1 means flat, up.y = 0 means on its side
+            const tiltFactor = Math.sqrt(1 - up.y * up.y); // 0 when flat, 1 when on side
+
+            // The lowest point of the pancake edge when tilted
+            // When tilted, the edge can be radius * tiltFactor lower than center
+            const edgeDrop = this.pancakeRadius * tiltFactor;
+
+            // Also account for pancake thickness at the edge
+            const lowestPoint = body.position.y - (this.pancakeHeight / 2) - edgeDrop;
+
+            // Check if the lowest point of the pancake touches or goes below the table
+            if (lowestPoint <= groundY + 0.05) { // Small buffer for physics precision
+                console.log('Pancake edge touched the ground!', 'lowestPoint:', lowestPoint, 'center Y:', body.position.y, 'tilt:', tiltFactor);
                 return true;
             }
         }
