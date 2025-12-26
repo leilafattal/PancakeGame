@@ -72,7 +72,7 @@ class ClassicStackScene {
 
     createDropLine() {
         // Create a red line to show where pancakes drop from
-        const lineWidth = 8; // Wide enough to span the play area between walls
+        const lineWidth = 6; // Fits within the walls (walls at 4 from center)
         const lineGeometry = new THREE.BoxGeometry(lineWidth, 0.05, 0.1);
         const lineMaterial = new THREE.MeshBasicMaterial({
             color: 0xff0000,
