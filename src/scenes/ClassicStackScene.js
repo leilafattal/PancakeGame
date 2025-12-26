@@ -37,6 +37,10 @@ class ClassicStackScene {
         // Touch/mouse tracking
         this.isDragging = false;
         this.dragStartX = 0;
+
+        // Drop line indicator
+        this.dropLine = null;
+        this.dropLineHeight = 3; // Initial height above stack
     }
 
     init() {
@@ -48,6 +52,7 @@ class ClassicStackScene {
         // Set up game environment
         this.createGround();
         this.createBasePancake();
+        this.createDropLine();
 
         // Set up input handlers
         this.setupInputHandlers();
@@ -58,6 +63,27 @@ class ClassicStackScene {
 
         // Start update loop
         this.update();
+    }
+
+    createDropLine() {
+        // Create a red line to show where pancakes drop from
+        const lineWidth = 8; // Wide enough to span the play area
+        const lineGeometry = new THREE.BoxGeometry(lineWidth, 0.05, 0.1);
+        const lineMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.7
+        });
+        this.dropLine = new THREE.Mesh(lineGeometry, lineMaterial);
+        this.dropLine.position.set(0, this.lastStackHeight + this.dropLineHeight, 0);
+        this.gameEngine.scene.add(this.dropLine);
+    }
+
+    updateDropLinePosition() {
+        if (this.dropLine) {
+            // Move drop line up as stack grows
+            this.dropLine.position.y = this.lastStackHeight + this.dropLineHeight;
+        }
     }
 
     createGround() {
@@ -84,10 +110,14 @@ class ClassicStackScene {
     spawnNewPancake() {
         if (!this.isPlaying) return;
 
+        // Update drop line position first
+        this.updateDropLinePosition();
+
         const { mesh, body } = this.gameEngine.createPancake(this.pancakeRadius, this.pancakeHeight);
 
-        // Start high above the stack
-        body.position.set(0, this.lastStackHeight + 8, 0);
+        // Start at the drop line height
+        const spawnHeight = this.lastStackHeight + this.dropLineHeight;
+        body.position.set(0, spawnHeight, 0);
         mesh.position.copy(body.position);
 
         // Make it kinematic (controlled by code, not physics) until dropped
@@ -341,6 +371,12 @@ class ClassicStackScene {
         console.log('Destroying Classic Stack scene...');
         this.isPlaying = false;
         this.removeInputHandlers();
+
+        // Remove drop line
+        if (this.dropLine) {
+            this.gameEngine.scene.remove(this.dropLine);
+            this.dropLine = null;
+        }
 
         // Clean up will be handled by game engine
         this.stackedPancakes = [];
