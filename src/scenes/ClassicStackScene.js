@@ -25,7 +25,7 @@ class ClassicStackScene {
         // Physics tracking
         this.lastStackHeight = 0;
         this.wobbleAngle = 0;
-        this.collapseThreshold = 0.3; // radians (~17 degrees)
+        this.collapseThreshold = 0.8; // More forgiving - about 2/3 of pancake radius
         this.isCollapsing = false;
 
         // Input
@@ -249,7 +249,23 @@ class ClassicStackScene {
     }
 
     checkStackStability() {
-        // Calculate center of mass and tilt angle
+        // Check if any pancake has fallen off the stack or hit the ground
+        for (let i = 1; i < this.stackedPancakes.length; i++) {
+            const { body } = this.stackedPancakes[i];
+
+            // If a pancake fell below the base, it's a collapse
+            if (body.position.y < 0) {
+                return false;
+            }
+
+            // If a pancake is way off to the side (more than 1.5x radius from center)
+            const horizontalOffset = Math.sqrt(body.position.x ** 2 + body.position.z ** 2);
+            if (horizontalOffset > this.pancakeRadius * 1.5) {
+                return false;
+            }
+        }
+
+        // Calculate center of mass for the whole stack
         let totalMass = 0;
         let centerOfMass = new CANNON.Vec3(0, 0, 0);
 
@@ -272,7 +288,7 @@ class ClassicStackScene {
         const horizontalOffset = Math.sqrt(centerOfMass.x ** 2 + centerOfMass.z ** 2);
         this.wobbleAngle = horizontalOffset;
 
-        // Check if exceeds collapse threshold
+        // Check if center of mass exceeds collapse threshold
         return horizontalOffset < this.collapseThreshold;
     }
 
