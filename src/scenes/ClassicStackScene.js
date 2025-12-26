@@ -41,6 +41,10 @@ class ClassicStackScene {
         // Drop line indicator
         this.dropLine = null;
         this.dropLineHeight = 3; // Initial height above stack
+
+        // Walls
+        this.walls = [];
+        this.wallBounce = 0.8; // How bouncy the walls are (0-1)
     }
 
     init() {
@@ -51,6 +55,7 @@ class ClassicStackScene {
 
         // Set up game environment
         this.createGround();
+        this.createWalls();
         this.createBasePancake();
         this.createDropLine();
 
@@ -92,6 +97,63 @@ class ClassicStackScene {
         mesh.position.copy(body.position);
 
         this.ground = this.gameEngine.addPhysicsBody(mesh, body);
+    }
+
+    createWalls() {
+        // Create bouncy walls on left and right sides
+        const wallHeight = 30; // Tall enough for high stacks
+        const wallThickness = 0.5;
+        const wallDepth = 12;
+        const wallDistance = 4; // Distance from center
+
+        // Bouncy wall material
+        const wallPhysicsMaterial = new CANNON.Material({
+            friction: 0.1,
+            restitution: this.wallBounce // Bounciness
+        });
+
+        // Left wall
+        const leftWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, wallDepth);
+        const wallMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff6b6b,
+            transparent: true,
+            opacity: 0.3
+        });
+        const leftWallMesh = new THREE.Mesh(leftWallGeometry, wallMaterial);
+        leftWallMesh.position.set(-wallDistance, wallHeight / 2, 0);
+        this.gameEngine.scene.add(leftWallMesh);
+
+        const leftWallShape = new CANNON.Box(new CANNON.Vec3(wallThickness / 2, wallHeight / 2, wallDepth / 2));
+        const leftWallBody = new CANNON.Body({
+            mass: 0, // Static
+            shape: leftWallShape,
+            material: wallPhysicsMaterial
+        });
+        leftWallBody.position.copy(leftWallMesh.position);
+        this.gameEngine.physicsWorld.addBody(leftWallBody);
+        this.walls.push({ mesh: leftWallMesh, body: leftWallBody });
+
+        // Right wall
+        const rightWallMesh = new THREE.Mesh(leftWallGeometry, wallMaterial);
+        rightWallMesh.position.set(wallDistance, wallHeight / 2, 0);
+        this.gameEngine.scene.add(rightWallMesh);
+
+        const rightWallBody = new CANNON.Body({
+            mass: 0,
+            shape: leftWallShape,
+            material: wallPhysicsMaterial
+        });
+        rightWallBody.position.copy(rightWallMesh.position);
+        this.gameEngine.physicsWorld.addBody(rightWallBody);
+        this.walls.push({ mesh: rightWallMesh, body: rightWallBody });
+
+        // Create contact material for pancake-wall collisions
+        const pancakeMaterial = new CANNON.Material();
+        const pancakeWallContact = new CANNON.ContactMaterial(pancakeMaterial, wallPhysicsMaterial, {
+            friction: 0.1,
+            restitution: this.wallBounce
+        });
+        this.gameEngine.physicsWorld.addContactMaterial(pancakeWallContact);
     }
 
     createBasePancake() {
@@ -198,12 +260,16 @@ class ClassicStackScene {
         console.log('Dropping pancake!');
         const { body } = this.currentPancake;
 
+        // Calculate horizontal velocity based on sway direction and speed
+        const horizontalVelocity = this.swaySpeed * this.swayDirection * 1.5;
+
         // Convert to dynamic physics object
         body.type = CANNON.Body.DYNAMIC;
         body.mass = 1;
         body.updateMassProperties();
         body.wakeUp();
-        body.velocity.set(0, -5, 0); // Give it some downward velocity
+        // Conserve horizontal momentum - pancake drifts in the direction it was moving
+        body.velocity.set(horizontalVelocity, -5, 0);
 
         // Add to stacked pancakes
         this.stackedPancakes.push(this.currentPancake);
@@ -377,6 +443,13 @@ class ClassicStackScene {
             this.gameEngine.scene.remove(this.dropLine);
             this.dropLine = null;
         }
+
+        // Remove walls
+        this.walls.forEach(({ mesh, body }) => {
+            this.gameEngine.scene.remove(mesh);
+            this.gameEngine.physicsWorld.removeBody(body);
+        });
+        this.walls = [];
 
         // Clean up will be handled by game engine
         this.stackedPancakes = [];
