@@ -280,13 +280,16 @@ class ClassicStackScene {
 
         // Spawn next pancake after a delay
         setTimeout(() => {
-            if (this.isPlaying) {
+            if (this.isPlaying && !this.isCollapsing) {
                 this.checkPancakeLanded();
             }
         }, 500);
     }
 
     checkPancakeLanded() {
+        // Stop if game is over
+        if (!this.isPlaying || this.isCollapsing) return;
+
         // Check if the last dropped pancake has landed and settled
         const lastPancake = this.stackedPancakes[this.stackedPancakes.length - 1];
 
@@ -297,15 +300,17 @@ class ClassicStackScene {
                 // Pancake has settled
                 this.onPancakeLanded(lastPancake);
 
-                // Check if stack is stable
-                if (!this.checkStackStability()) {
+                // Check if stack is stable (only if not already collapsing)
+                if (!this.isCollapsing && !this.checkStackStability()) {
                     this.triggerCollapse();
-                } else {
+                } else if (!this.isCollapsing) {
                     this.spawnNewPancake();
                 }
             } else {
-                // Keep checking
-                setTimeout(() => this.checkPancakeLanded(), 100);
+                // Keep checking (only if game is still playing)
+                if (this.isPlaying && !this.isCollapsing) {
+                    setTimeout(() => this.checkPancakeLanded(), 100);
+                }
             }
         }
     }
