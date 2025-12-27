@@ -51,8 +51,8 @@ class GameEngine {
             }
         );
 
-        // Add fog for depth (lighter to work with background image)
-        this.scene.fog = new THREE.Fog(0xFFFFFF, 30, 150);
+        // No fog - let the background image show clearly
+        // this.scene.fog = new THREE.Fog(0xFFFFFF, 30, 150);
     }
 
     setupCamera() {
