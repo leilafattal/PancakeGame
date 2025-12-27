@@ -112,16 +112,12 @@ class ClassicStackScene {
             restitution: this.wallBounce // Bounciness
         });
 
-        // Left wall
+        // Left wall - invisible mesh, only physics body is used
         const leftWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, wallDepth);
-        const wallMaterial = new THREE.MeshStandardMaterial({
-            color: 0xff6b6b,
-            transparent: true,
-            opacity: 0.0 // Fully transparent - invisible walls
-        });
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xff6b6b });
         const leftWallMesh = new THREE.Mesh(leftWallGeometry, wallMaterial);
         leftWallMesh.position.set(-wallDistance, wallHeight / 2, 0);
-        this.gameEngine.scene.add(leftWallMesh);
+        leftWallMesh.visible = false; // Hide mesh but keep physics
 
         const leftWallShape = new CANNON.Box(new CANNON.Vec3(wallThickness / 2, wallHeight / 2, wallDepth / 2));
         const leftWallBody = new CANNON.Body({
@@ -133,10 +129,10 @@ class ClassicStackScene {
         this.gameEngine.physicsWorld.addBody(leftWallBody);
         this.walls.push({ mesh: leftWallMesh, body: leftWallBody });
 
-        // Right wall
+        // Right wall - invisible mesh, only physics body is used
         const rightWallMesh = new THREE.Mesh(leftWallGeometry, wallMaterial);
         rightWallMesh.position.set(wallDistance, wallHeight / 2, 0);
-        this.gameEngine.scene.add(rightWallMesh);
+        rightWallMesh.visible = false; // Hide mesh but keep physics
 
         const rightWallBody = new CANNON.Body({
             mass: 0,
