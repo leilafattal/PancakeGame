@@ -257,7 +257,8 @@ class ClassicStackScene {
     }
 
     dropPancake() {
-        if (!this.currentPancake) return;
+        // Don't allow dropping if game is over or collapsing
+        if (!this.currentPancake || !this.isPlaying || this.isCollapsing) return;
 
         console.log('Dropping pancake!');
         const { body } = this.currentPancake;
@@ -376,6 +377,12 @@ class ClassicStackScene {
         this.isCollapsing = true;
         this.isPlaying = false;
 
+        // Remove any pancake that's still in the air (not yet dropped)
+        if (this.currentPancake) {
+            this.gameEngine.removePhysicsBody(this.currentPancake.mesh);
+            this.currentPancake = null;
+        }
+
         // Make all pancakes dynamic so they fall
         this.stackedPancakes.forEach(({ body }) => {
             if (body.type === CANNON.Body.STATIC) {
@@ -401,6 +408,12 @@ class ClassicStackScene {
 
         // Check if any pancake has fallen to the ground (touched the table)
         if (this.checkForGroundCollision()) {
+            this.triggerCollapse();
+            return;
+        }
+
+        // Check if any pancake has fallen off the plate (continuous check)
+        if (!this.checkStackStability()) {
             this.triggerCollapse();
             return;
         }
