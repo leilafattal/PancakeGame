@@ -6,12 +6,15 @@ class DecorateScene {
         this.gameManager = gameManager;
 
         // Scene elements
-        this.pancakeStack = null;
+        this.pancake = null;
         this.plate = null;
         this.table = null;
 
-        // Current decoration tool
-        this.currentTool = 'cream'; // 'sprinkles', 'cream', 'syrup'
+        // Bottles
+        this.bottles = {};
+        this.bottleShelf = null;
+        this.selectedBottle = null;
+        this.currentTool = 'syrup';
 
         // Decoration objects
         this.decorations = [];
@@ -23,6 +26,9 @@ class DecorateScene {
 
         // Animation frame
         this.animationId = null;
+
+        // Bottle pour animation
+        this.isPouringAnimation = false;
     }
 
     init() {
@@ -34,13 +40,15 @@ class DecorateScene {
         // Create environment
         this.createTable();
         this.createPlate();
-        this.createPancakeStack();
-        this.createDecorationUI();
+        this.createSinglePancake();
+        this.createBottleShelf();
+        this.createBottles();
+        this.createDoneButton();
         this.setupInputHandlers();
 
         // Adjust camera for better decoration view
-        this.gameEngine.camera.position.set(0, 5, 7);
-        this.gameEngine.camera.lookAt(0, 1.5, 0);
+        this.gameEngine.camera.position.set(0, 6, 8);
+        this.gameEngine.camera.lookAt(0, 1, 0);
 
         // Start animation loop
         this.animate();
@@ -87,161 +95,436 @@ class DecorateScene {
         this.gameEngine.scene.add(rim);
     }
 
-    createPancakeStack() {
-        // Create a group to hold the pancake stack for easy rotation
-        this.pancakeStack = new THREE.Group();
+    createSinglePancake() {
+        // Create a single pancake with subtle texture
+        const radius = 1.5;
+        const height = 0.25;
 
-        // Create 3 stacked realistic pancakes using the game engine's method
-        for (let i = 0; i < 3; i++) {
-            const radius = 1.4 - i * 0.05;
-            const height = 0.22;
+        this.pancake = this.createSimplePancakeMesh(radius, height);
+        this.pancake.position.y = 0.25;
+        this.pancake.castShadow = true;
+        this.pancake.receiveShadow = true;
 
-            // Use the game engine's realistic pancake mesh creator
-            const pancake = this.gameEngine.createRealisticPancakeMesh(radius, height);
-            pancake.position.y = 0.25 + i * 0.23;
-            pancake.rotation.y = Math.random() * Math.PI * 2; // Random rotation for variety
-            this.pancakeStack.add(pancake);
-        }
-
-        // Add a pat of butter on top
-        const butterGeometry = new THREE.BoxGeometry(0.4, 0.15, 0.4);
-        const butterMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFFF4B8,
-            roughness: 0.3,
-            metalness: 0.1,
-            transparent: true,
-            opacity: 0.95
-        });
-        const butter = new THREE.Mesh(butterGeometry, butterMaterial);
-        butter.position.y = 0.25 + 3 * 0.23 + 0.08;
-        butter.rotation.y = Math.PI / 6;
-        butter.castShadow = true;
-
-        // Round the butter edges slightly
-        butter.scale.set(1, 0.8, 1);
-        this.pancakeStack.add(butter);
-
-        this.gameEngine.scene.add(this.pancakeStack);
+        this.gameEngine.scene.add(this.pancake);
     }
 
-    createDecorationUI() {
-        // Create UI overlay for decoration tools
+    createSimplePancakeMesh(radius, height) {
+        const segments = 48;
+        const geometry = new THREE.CylinderGeometry(radius, radius * 1.02, height, segments, 1, false);
+
+        // Slight vertex modifications for natural look
+        const positions = geometry.attributes.position;
+        const vertex = new THREE.Vector3();
+
+        for (let i = 0; i < positions.count; i++) {
+            vertex.fromBufferAttribute(positions, i);
+            const distFromCenter = Math.sqrt(vertex.x * vertex.x + vertex.z * vertex.z);
+            const angle = Math.atan2(vertex.z, vertex.x);
+
+            // Subtle irregular edges
+            if (distFromCenter > radius * 0.5) {
+                const edgeNoise = 0.02 * Math.sin(angle * 7) + 0.015 * Math.sin(angle * 11);
+                const scaleFactor = 1 + edgeNoise * (distFromCenter / radius);
+                vertex.x *= scaleFactor;
+                vertex.z *= scaleFactor;
+            }
+
+            // Subtle dome on top
+            if (vertex.y > 0) {
+                const domeHeight = 0.01 * (1 - Math.pow(distFromCenter / radius, 2));
+                vertex.y += domeHeight;
+            }
+
+            positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        }
+
+        geometry.computeVertexNormals();
+
+        // Simple pancake material with subtle texture
+        const material = this.createSimplePancakeMaterial();
+
+        return new THREE.Mesh(geometry, material);
+    }
+
+    createSimplePancakeMaterial() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+
+        // Base golden color
+        ctx.fillStyle = '#E8B85C';
+        ctx.fillRect(0, 0, 512, 512);
+
+        const centerX = 256;
+        const centerY = 256;
+
+        // Subtle radial gradient for browning
+        const gradient = ctx.createRadialGradient(centerX, centerY, 80, centerX, centerY, 240);
+        gradient.addColorStop(0, 'rgba(235, 195, 110, 0.6)');
+        gradient.addColorStop(0.6, 'rgba(210, 160, 80, 0.5)');
+        gradient.addColorStop(1, 'rgba(175, 130, 60, 0.7)');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Subtle bubble marks
+        ctx.fillStyle = 'rgba(160, 110, 50, 0.2)';
+        for (let i = 0; i < 30; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 180 + 20;
+            const x = centerX + Math.cos(angle) * dist;
+            const y = centerY + Math.sin(angle) * dist;
+            const bubbleRadius = Math.random() * 10 + 4;
+
+            ctx.beginPath();
+            ctx.arc(x, y, bubbleRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Light noise
+        const imageData = ctx.getImageData(0, 0, 512, 512);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const noise = (Math.random() - 0.5) * 8;
+            data[i] = Math.max(0, Math.min(255, data[i] + noise));
+            data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+            data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        const texture = new THREE.CanvasTexture(canvas);
+
+        return new THREE.MeshStandardMaterial({
+            map: texture,
+            roughness: 0.85,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+        });
+    }
+
+    createBottleShelf() {
+        // Create a wooden shelf/bar behind the plate to hold bottles
+        const shelfGroup = new THREE.Group();
+
+        // Main shelf board
+        const shelfGeometry = new THREE.BoxGeometry(4, 0.15, 0.8);
+        const shelfMaterial = new THREE.MeshStandardMaterial({
+            color: 0x6B4423,
+            roughness: 0.7,
+            metalness: 0.1
+        });
+        const shelf = new THREE.Mesh(shelfGeometry, shelfMaterial);
+        shelf.position.set(0, 0.6, -3);
+        shelf.castShadow = true;
+        shelf.receiveShadow = true;
+        shelfGroup.add(shelf);
+
+        // Back panel
+        const backGeometry = new THREE.BoxGeometry(4.2, 1.5, 0.1);
+        const backMaterial = new THREE.MeshStandardMaterial({
+            color: 0x5D3A1A,
+            roughness: 0.8,
+            metalness: 0.05
+        });
+        const back = new THREE.Mesh(backGeometry, backMaterial);
+        back.position.set(0, 1.2, -3.4);
+        shelfGroup.add(back);
+
+        this.bottleShelf = shelfGroup;
+        this.gameEngine.scene.add(shelfGroup);
+    }
+
+    createBottles() {
+        // Create 3D bottle models
+        const bottlePositions = {
+            syrup: { x: -1.2, y: 0.68, z: -3 },
+            cream: { x: 0, y: 0.68, z: -3 },
+            sprinkles: { x: 1.2, y: 0.68, z: -3 }
+        };
+
+        // Maple Syrup Bottle
+        this.bottles.syrup = this.createSyrupBottle();
+        this.bottles.syrup.position.set(bottlePositions.syrup.x, bottlePositions.syrup.y, bottlePositions.syrup.z);
+        this.bottles.syrup.userData = { type: 'syrup', originalPos: { ...bottlePositions.syrup } };
+        this.gameEngine.scene.add(this.bottles.syrup);
+
+        // Whipped Cream Can
+        this.bottles.cream = this.createCreamCan();
+        this.bottles.cream.position.set(bottlePositions.cream.x, bottlePositions.cream.y, bottlePositions.cream.z);
+        this.bottles.cream.userData = { type: 'cream', originalPos: { ...bottlePositions.cream } };
+        this.gameEngine.scene.add(this.bottles.cream);
+
+        // Sprinkle Shaker
+        this.bottles.sprinkles = this.createSprinkleShaker();
+        this.bottles.sprinkles.position.set(bottlePositions.sprinkles.x, bottlePositions.sprinkles.y, bottlePositions.sprinkles.z);
+        this.bottles.sprinkles.userData = { type: 'sprinkles', originalPos: { ...bottlePositions.sprinkles } };
+        this.gameEngine.scene.add(this.bottles.sprinkles);
+
+        // Select syrup by default
+        this.selectBottle('syrup');
+    }
+
+    createSyrupBottle() {
+        const bottleGroup = new THREE.Group();
+
+        // Bottle body (classic maple syrup bottle shape)
+        const bodyGeometry = new THREE.CylinderGeometry(0.22, 0.28, 0.9, 12);
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B4513,
+            roughness: 0.2,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.85
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = 0.45;
+        bottleGroup.add(body);
+
+        // Syrup inside (visible through bottle)
+        const syrupGeometry = new THREE.CylinderGeometry(0.18, 0.24, 0.7, 12);
+        const syrupMaterial = new THREE.MeshStandardMaterial({
+            color: 0xC06000,
+            roughness: 0.1,
+            metalness: 0.3,
+            transparent: true,
+            opacity: 0.9
+        });
+        const syrup = new THREE.Mesh(syrupGeometry, syrupMaterial);
+        syrup.position.y = 0.4;
+        bottleGroup.add(syrup);
+
+        // Bottle neck
+        const neckGeometry = new THREE.CylinderGeometry(0.08, 0.15, 0.25, 12);
+        const neck = new THREE.Mesh(neckGeometry, bodyMaterial);
+        neck.position.y = 1.0;
+        bottleGroup.add(neck);
+
+        // Cap
+        const capGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.12, 12);
+        const capMaterial = new THREE.MeshStandardMaterial({
+            color: 0x333333,
+            roughness: 0.5,
+            metalness: 0.3
+        });
+        const cap = new THREE.Mesh(capGeometry, capMaterial);
+        cap.position.y = 1.18;
+        bottleGroup.add(cap);
+
+        // Label
+        const labelGeometry = new THREE.CylinderGeometry(0.23, 0.27, 0.4, 12, 1, true);
+        const labelMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFF8DC,
+            roughness: 0.9,
+            metalness: 0.0
+        });
+        const label = new THREE.Mesh(labelGeometry, labelMaterial);
+        label.position.y = 0.45;
+        bottleGroup.add(label);
+
+        bottleGroup.castShadow = true;
+        return bottleGroup;
+    }
+
+    createCreamCan() {
+        const canGroup = new THREE.Group();
+
+        // Can body
+        const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.0, 16);
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: 0xE8E8E8,
+            roughness: 0.3,
+            metalness: 0.6
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = 0.5;
+        canGroup.add(body);
+
+        // Red stripe
+        const stripeGeometry = new THREE.CylinderGeometry(0.205, 0.205, 0.3, 16, 1, true);
+        const stripeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xCC3333,
+            roughness: 0.4,
+            metalness: 0.3
+        });
+        const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+        stripe.position.y = 0.5;
+        canGroup.add(stripe);
+
+        // Nozzle top
+        const topGeometry = new THREE.CylinderGeometry(0.15, 0.2, 0.15, 16);
+        const topMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFFFFF,
+            roughness: 0.3,
+            metalness: 0.4
+        });
+        const top = new THREE.Mesh(topGeometry, topMaterial);
+        top.position.y = 1.05;
+        canGroup.add(top);
+
+        // Nozzle
+        const nozzleGeometry = new THREE.CylinderGeometry(0.03, 0.05, 0.15, 8);
+        const nozzleMaterial = new THREE.MeshStandardMaterial({
+            color: 0xCC3333,
+            roughness: 0.5,
+            metalness: 0.2
+        });
+        const nozzle = new THREE.Mesh(nozzleGeometry, nozzleMaterial);
+        nozzle.position.set(0.1, 1.15, 0);
+        nozzle.rotation.z = -Math.PI / 6;
+        canGroup.add(nozzle);
+
+        canGroup.castShadow = true;
+        return canGroup;
+    }
+
+    createSprinkleShaker() {
+        const shakerGroup = new THREE.Group();
+
+        // Shaker body (jar shape)
+        const bodyGeometry = new THREE.CylinderGeometry(0.18, 0.22, 0.7, 12);
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFFFFF,
+            roughness: 0.2,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.7
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.y = 0.35;
+        shakerGroup.add(body);
+
+        // Colorful sprinkles inside (visible through glass)
+        const colors = [0xFF6B9D, 0x4ECDC4, 0xFFE66D, 0x95E1D3, 0xFF8C42, 0xA855F7];
+        for (let i = 0; i < 30; i++) {
+            const sprinkleGeom = new THREE.CylinderGeometry(0.01, 0.01, 0.04, 4);
+            const sprinkleMat = new THREE.MeshStandardMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                roughness: 0.5
+            });
+            const sprinkle = new THREE.Mesh(sprinkleGeom, sprinkleMat);
+
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 0.12;
+            sprinkle.position.set(
+                Math.cos(angle) * dist,
+                0.15 + Math.random() * 0.35,
+                Math.sin(angle) * dist
+            );
+            sprinkle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            shakerGroup.add(sprinkle);
+        }
+
+        // Metal lid with holes
+        const lidGeometry = new THREE.CylinderGeometry(0.19, 0.19, 0.1, 12);
+        const lidMaterial = new THREE.MeshStandardMaterial({
+            color: 0xC0C0C0,
+            roughness: 0.3,
+            metalness: 0.8
+        });
+        const lid = new THREE.Mesh(lidGeometry, lidMaterial);
+        lid.position.y = 0.75;
+        shakerGroup.add(lid);
+
+        // Holes in lid (decorative dots)
+        for (let i = 0; i < 7; i++) {
+            const angle = (i / 7) * Math.PI * 2;
+            const dist = i === 0 ? 0 : 0.08;
+            const holeGeom = new THREE.CylinderGeometry(0.02, 0.02, 0.11, 6);
+            const holeMat = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                roughness: 0.8
+            });
+            const hole = new THREE.Mesh(holeGeom, holeMat);
+            hole.position.set(
+                Math.cos(angle) * dist,
+                0.75,
+                Math.sin(angle) * dist
+            );
+            shakerGroup.add(hole);
+        }
+
+        shakerGroup.castShadow = true;
+        return shakerGroup;
+    }
+
+    selectBottle(type) {
+        // Reset all bottles
+        Object.keys(this.bottles).forEach(key => {
+            const bottle = this.bottles[key];
+            const orig = bottle.userData.originalPos;
+            bottle.position.set(orig.x, orig.y, orig.z);
+            bottle.rotation.set(0, 0, 0);
+            bottle.scale.set(1, 1, 1);
+        });
+
+        // Highlight selected bottle
+        this.currentTool = type;
+        this.selectedBottle = this.bottles[type];
+
+        // Move selected bottle forward and scale up slightly
+        this.selectedBottle.position.z += 0.3;
+        this.selectedBottle.position.y += 0.1;
+        this.selectedBottle.scale.set(1.15, 1.15, 1.15);
+    }
+
+    createDoneButton() {
         const existingUI = document.getElementById('decorate-ui');
         if (existingUI) existingUI.remove();
-
-        const decorateUI = document.createElement('div');
-        decorateUI.id = 'decorate-ui';
-        decorateUI.innerHTML = `
-            <style>
-                #decorate-ui {
-                    position: absolute;
-                    bottom: 20px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    display: flex;
-                    gap: 15px;
-                    z-index: 200;
-                    pointer-events: auto;
-                }
-                .tool-btn {
-                    width: 70px;
-                    height: 70px;
-                    border-radius: 50%;
-                    border: 4px solid #8B4513;
-                    background: linear-gradient(135deg, #FFF8E7 0%, #FFE5B4 100%);
-                    cursor: pointer;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 28px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                    transition: all 0.2s ease;
-                }
-                .tool-btn:active {
-                    transform: scale(0.9);
-                }
-                .tool-btn.active {
-                    border-color: #FFD166;
-                    box-shadow: 0 0 20px rgba(255, 209, 102, 0.8);
-                    transform: scale(1.1);
-                }
-                .tool-btn span {
-                    font-size: 10px;
-                    color: #8B4513;
-                    margin-top: 2px;
-                    font-weight: bold;
-                }
-                #done-btn {
-                    position: absolute;
-                    top: 20px;
-                    right: 20px;
-                    padding: 12px 30px;
-                    background: linear-gradient(135deg, #FFD166 0%, #FFB627 100%);
-                    border: 3px solid #8B4513;
-                    border-radius: 20px;
-                    font-size: 18px;
-                    font-weight: bold;
-                    color: #8B4513;
-                    cursor: pointer;
-                    z-index: 200;
-                    pointer-events: auto;
-                }
-                #done-btn:active {
-                    transform: scale(0.95);
-                }
-                #rotate-hint {
-                    position: absolute;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    color: rgba(139, 69, 19, 0.6);
-                    font-size: 16px;
-                    pointer-events: none;
-                    text-align: center;
-                    opacity: 1;
-                    transition: opacity 1s;
-                }
-            </style>
-            <button class="tool-btn active" data-tool="cream">🍦<span>Cream</span></button>
-            <button class="tool-btn" data-tool="syrup">🍯<span>Syrup</span></button>
-            <button class="tool-btn" data-tool="sprinkles">✨<span>Sprinkle</span></button>
-        `;
 
         const doneBtn = document.createElement('button');
         doneBtn.id = 'done-btn';
         doneBtn.textContent = 'DONE';
+        doneBtn.style.cssText = `
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #FFD166 0%, #FFB627 100%);
+            border: 3px solid #8B4513;
+            border-radius: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #8B4513;
+            cursor: pointer;
+            z-index: 200;
+            pointer-events: auto;
+        `;
         doneBtn.onclick = () => this.gameManager.showMenu();
-
-        const rotateHint = document.createElement('div');
-        rotateHint.id = 'rotate-hint';
-        rotateHint.innerHTML = 'Drag to rotate / Tap to decorate';
-
-        document.getElementById('ui-overlay').appendChild(decorateUI);
         document.getElementById('ui-overlay').appendChild(doneBtn);
-        document.getElementById('ui-overlay').appendChild(rotateHint);
 
-        // Hide hint after 3 seconds
+        // Hint text
+        const hint = document.createElement('div');
+        hint.id = 'rotate-hint';
+        hint.innerHTML = 'Tap bottles to select • Drag to rotate • Tap pancake to pour';
+        hint.style.cssText = `
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(139, 69, 19, 0.8);
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+            text-align: center;
+            background: rgba(255, 248, 231, 0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            opacity: 1;
+            transition: opacity 1s;
+        `;
+        document.getElementById('ui-overlay').appendChild(hint);
+
+        // Fade hint after 4 seconds
         setTimeout(() => {
-            rotateHint.style.opacity = '0';
-            setTimeout(() => rotateHint.remove(), 1000);
-        }, 3000);
-
-        // Tool selection
-        decorateUI.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                decorateUI.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.currentTool = btn.dataset.tool;
-            });
-        });
+            hint.style.opacity = '0';
+            setTimeout(() => hint.remove(), 1000);
+        }, 4000);
     }
 
     setupInputHandlers() {
         const canvas = this.gameEngine.renderer.domElement;
 
-        // Track drag for rotation vs tap for decoration
         let startX = 0;
         let startY = 0;
         let hasDragged = false;
@@ -261,18 +544,19 @@ class DecorateScene {
             const touch = e.touches ? e.touches[0] : e;
             const deltaX = touch.clientX - this.previousMouseX;
 
-            // If moved significantly, it's a drag
             if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
                 hasDragged = true;
             }
 
-            // Rotate pancake stack
+            // Rotate pancake
             this.rotationVelocity = deltaX * 0.01;
-            this.pancakeStack.rotation.y += this.rotationVelocity;
+            if (this.pancake) {
+                this.pancake.rotation.y += this.rotationVelocity;
+            }
 
-            // Rotate decorations with the stack
+            // Rotate decorations with pancake
             this.decorations.forEach(dec => {
-                if (dec.userData && dec.userData.attachedToStack) {
+                if (dec.userData && dec.userData.attachedToPancake) {
                     const x = dec.position.x;
                     const z = dec.position.z;
                     const cos = Math.cos(this.rotationVelocity);
@@ -288,7 +572,6 @@ class DecorateScene {
         this.pointerUpHandler = (e) => {
             this.isDragging = false;
 
-            // If it was a tap (not a drag), apply decoration
             if (!hasDragged) {
                 const touch = e.changedTouches ? e.changedTouches[0] : e;
                 this.handleTap(touch.clientX, touch.clientY);
@@ -304,18 +587,11 @@ class DecorateScene {
 
         // Keyboard shortcuts
         this.keyHandler = (e) => {
-            if (e.key === '1') this.selectTool('cream');
-            if (e.key === '2') this.selectTool('syrup');
-            if (e.key === '3') this.selectTool('sprinkles');
+            if (e.key === '1') this.selectBottle('syrup');
+            if (e.key === '2') this.selectBottle('cream');
+            if (e.key === '3') this.selectBottle('sprinkles');
         };
         window.addEventListener('keydown', this.keyHandler);
-    }
-
-    selectTool(tool) {
-        this.currentTool = tool;
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tool === tool);
-        });
     }
 
     handleTap(clientX, clientY) {
@@ -323,35 +599,112 @@ class DecorateScene {
         const x = ((clientX - rect.left) / rect.width) * 2 - 1;
         const y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
-        // Raycast to find position on pancake
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(x, y), this.gameEngine.camera);
 
-        const intersects = raycaster.intersectObjects(this.pancakeStack.children);
+        // Check if clicked on a bottle
+        const bottleObjects = Object.values(this.bottles).flatMap(b => b.children);
+        const bottleHits = raycaster.intersectObjects(bottleObjects, true);
 
-        if (intersects.length > 0) {
-            const point = intersects[0].point;
-            this.startPourAnimation(point);
+        if (bottleHits.length > 0) {
+            // Find which bottle was clicked
+            for (const type of Object.keys(this.bottles)) {
+                const bottle = this.bottles[type];
+                if (bottle.children.some(child => bottleHits.some(hit => hit.object === child))) {
+                    this.selectBottle(type);
+                    return;
+                }
+            }
+        }
+
+        // Check if clicked on pancake
+        const pancakeHits = raycaster.intersectObject(this.pancake);
+        if (pancakeHits.length > 0) {
+            const point = pancakeHits[0].point;
+            this.animateBottlePour(point);
         }
     }
 
-    startPourAnimation(targetPoint) {
+    animateBottlePour(targetPoint) {
+        if (this.isPouringAnimation) return;
+        this.isPouringAnimation = true;
+
+        const bottle = this.selectedBottle;
+        const origPos = { ...bottle.userData.originalPos };
+        origPos.z += 0.3; // Account for selection offset
+        origPos.y += 0.1;
+
+        // Move bottle above pour point and tilt it
+        const pourPos = {
+            x: targetPoint.x,
+            y: 3,
+            z: targetPoint.z + 1
+        };
+
+        let frame = 0;
+        const totalFrames = 30;
+
+        const animateToPour = () => {
+            frame++;
+            const t = frame / totalFrames;
+            const easeT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+            bottle.position.x = origPos.x + (pourPos.x - origPos.x) * easeT;
+            bottle.position.y = origPos.y + (pourPos.y - origPos.y) * easeT;
+            bottle.position.z = origPos.z + (pourPos.z - origPos.z) * easeT;
+            bottle.rotation.x = easeT * Math.PI / 4;
+
+            if (frame < totalFrames) {
+                requestAnimationFrame(animateToPour);
+            } else {
+                // Start pouring
+                this.startPourAnimation(targetPoint, () => {
+                    // Return bottle to shelf
+                    let returnFrame = 0;
+                    const returnFrames = 25;
+
+                    const animateReturn = () => {
+                        returnFrame++;
+                        const rt = returnFrame / returnFrames;
+                        const easeRt = rt < 0.5 ? 2 * rt * rt : 1 - Math.pow(-2 * rt + 2, 2) / 2;
+
+                        bottle.position.x = pourPos.x + (origPos.x - pourPos.x) * easeRt;
+                        bottle.position.y = pourPos.y + (origPos.y - pourPos.y) * easeRt;
+                        bottle.position.z = pourPos.z + (origPos.z - pourPos.z) * easeRt;
+                        bottle.rotation.x = (1 - easeRt) * Math.PI / 4;
+
+                        if (returnFrame < returnFrames) {
+                            requestAnimationFrame(animateReturn);
+                        } else {
+                            bottle.rotation.x = 0;
+                            this.isPouringAnimation = false;
+                        }
+                    };
+
+                    animateReturn();
+                });
+            }
+        };
+
+        animateToPour();
+    }
+
+    startPourAnimation(targetPoint, onComplete) {
         switch (this.currentTool) {
             case 'cream':
-                this.pourWhippedCream(targetPoint);
+                this.pourWhippedCream(targetPoint, onComplete);
                 break;
             case 'syrup':
-                this.pourSyrup(targetPoint);
+                this.pourSyrup(targetPoint, onComplete);
                 break;
             case 'sprinkles':
-                this.dropSprinkles(targetPoint);
+                this.dropSprinkles(targetPoint, onComplete);
                 break;
         }
     }
 
-    pourWhippedCream(targetPoint) {
-        // Create whipped cream pour from above
-        const startY = 4;
+    pourWhippedCream(targetPoint, onComplete) {
+        const startY = 2.5;
         const particles = [];
         const numParticles = 15;
 
@@ -407,7 +760,7 @@ class DecorateScene {
                         p.position.y = p.userData.targetY;
                         p.userData.landed = true;
                         p.scale.set(1.3, 0.6, 1.3);
-                        p.userData.attachedToStack = true;
+                        p.userData.attachedToPancake = true;
                         this.decorations.push(p);
                     }
                 }
@@ -417,6 +770,7 @@ class DecorateScene {
                 requestAnimationFrame(animateCream);
             } else {
                 this.createCreamDollop(targetPoint);
+                if (onComplete) onComplete();
             }
         };
 
@@ -434,7 +788,6 @@ class DecorateScene {
         });
         const base = new THREE.Mesh(baseGeom, creamMat);
         base.scale.set(1, 0.5, 1);
-        base.position.y = 0;
         group.add(base);
 
         const midGeom = new THREE.SphereGeometry(0.18, 16, 16);
@@ -450,18 +803,17 @@ class DecorateScene {
         group.add(top);
 
         group.position.set(position.x, position.y + 0.05, position.z);
-        group.userData.attachedToStack = true;
+        group.userData.attachedToPancake = true;
 
         this.gameEngine.scene.add(group);
         this.decorations.push(group);
 
-        // Scale animation
         group.scale.set(0, 0, 0);
         this.animateScale(group, { x: 1, y: 1, z: 1 }, 300);
     }
 
-    pourSyrup(targetPoint) {
-        const startY = 4;
+    pourSyrup(targetPoint, onComplete) {
+        const startY = 2.5;
         const streamLength = 20;
         const particles = [];
 
@@ -476,7 +828,7 @@ class DecorateScene {
             });
             const drop = new THREE.Mesh(geometry, material);
 
-            drop.position.set(targetPoint.x, startY + i * 0.15, targetPoint.z);
+            drop.position.set(targetPoint.x, startY + i * 0.12, targetPoint.z);
             drop.userData = {
                 velocity: new THREE.Vector3(0, -0.2, 0),
                 landed: false,
@@ -511,7 +863,7 @@ class DecorateScene {
                         p.position.y = targetPoint.y + 0.02;
                         p.userData.landed = true;
                         p.scale.set(1.5, 0.3, 1.5);
-                        p.userData.attachedToStack = true;
+                        p.userData.attachedToPancake = true;
                         this.decorations.push(p);
                     }
                 }
@@ -521,6 +873,7 @@ class DecorateScene {
                 requestAnimationFrame(animateSyrup);
             } else {
                 this.createSyrupPuddle(targetPoint);
+                if (onComplete) onComplete();
             }
         };
 
@@ -538,12 +891,11 @@ class DecorateScene {
         });
         const puddle = new THREE.Mesh(puddleGeom, puddleMat);
         puddle.position.set(position.x, position.y + 0.03, position.z);
-        puddle.userData.attachedToStack = true;
+        puddle.userData.attachedToPancake = true;
 
         this.gameEngine.scene.add(puddle);
         this.decorations.push(puddle);
 
-        // Drip effect
         this.createSyrupDrip(position);
 
         puddle.scale.set(0.5, 1, 0.5);
@@ -556,8 +908,8 @@ class DecorateScene {
 
         for (let i = 0; i < numPoints; i++) {
             const t = i / (numPoints - 1);
-            const y = position.y - t * 0.8;
-            const radius = 1.4 + t * 0.3;
+            const y = position.y - t * 0.6;
+            const radius = 1.5 + t * 0.2;
             const x = Math.cos(startAngle) * radius;
             const z = Math.sin(startAngle) * radius;
 
@@ -572,7 +924,7 @@ class DecorateScene {
             const drop = new THREE.Mesh(dropGeom, dropMat);
             drop.position.set(x, y, z);
             drop.scale.set(1, 1.5, 1);
-            drop.userData.attachedToStack = true;
+            drop.userData.attachedToPancake = true;
 
             drop.visible = false;
             setTimeout(() => {
@@ -584,10 +936,10 @@ class DecorateScene {
         }
     }
 
-    dropSprinkles(targetPoint) {
+    dropSprinkles(targetPoint, onComplete) {
         const colors = [0xFF6B9D, 0x4ECDC4, 0xFFE66D, 0x95E1D3, 0xFF8C42, 0xA855F7];
         const numSprinkles = 25;
-        const startY = 3.5;
+        const startY = 2.5;
         const particles = [];
 
         for (let i = 0; i < numSprinkles; i++) {
@@ -665,7 +1017,7 @@ class DecorateScene {
                             p.userData.velocity.z *= 0.5;
                             p.userData.rotationSpeed.multiplyScalar(0.7);
                         } else {
-                            p.userData.attachedToStack = distFromCenter < 1.5;
+                            p.userData.attachedToPancake = distFromCenter < 1.5;
                             this.decorations.push(p);
                         }
                     }
@@ -674,10 +1026,12 @@ class DecorateScene {
 
             if (!allSettled) {
                 requestAnimationFrame(animateSprinkles);
+            } else {
+                this.createSparkleEffect(targetPoint);
+                if (onComplete) onComplete();
             }
         };
 
-        this.createSparkleEffect(targetPoint);
         animateSprinkles();
     }
 
@@ -744,7 +1098,7 @@ class DecorateScene {
             const elapsed = Date.now() - startTime;
             let t = Math.min(elapsed / duration, 1);
 
-            // Bounce easing with overshoot
+            // Bounce easing
             if (t < 0.5) {
                 t = 4 * t * t * t;
             } else {
@@ -769,15 +1123,15 @@ class DecorateScene {
     }
 
     animate() {
-        if (!this.pancakeStack) return;
+        if (!this.pancake) return;
 
         // Apply rotation momentum
         if (!this.isDragging && Math.abs(this.rotationVelocity) > 0.001) {
             this.rotationVelocity *= 0.95;
-            this.pancakeStack.rotation.y += this.rotationVelocity;
+            this.pancake.rotation.y += this.rotationVelocity;
 
             this.decorations.forEach(dec => {
-                if (dec.userData && dec.userData.attachedToStack) {
+                if (dec.userData && dec.userData.attachedToPancake) {
                     const x = dec.position.x;
                     const z = dec.position.z;
                     const cos = Math.cos(this.rotationVelocity);
@@ -812,8 +1166,6 @@ class DecorateScene {
         this.removeInputHandlers();
 
         // Remove UI
-        const decorateUI = document.getElementById('decorate-ui');
-        if (decorateUI) decorateUI.remove();
         const doneBtn = document.getElementById('done-btn');
         if (doneBtn) doneBtn.remove();
         const rotateHint = document.getElementById('rotate-hint');
@@ -825,10 +1177,16 @@ class DecorateScene {
         });
         this.decorations = [];
 
+        // Remove bottles
+        Object.values(this.bottles).forEach(bottle => {
+            this.gameEngine.scene.remove(bottle);
+        });
+
         // Remove scene objects
-        if (this.pancakeStack) this.gameEngine.scene.remove(this.pancakeStack);
+        if (this.pancake) this.gameEngine.scene.remove(this.pancake);
         if (this.plate) this.gameEngine.scene.remove(this.plate);
         if (this.table) this.gameEngine.scene.remove(this.table);
+        if (this.bottleShelf) this.gameEngine.scene.remove(this.bottleShelf);
     }
 }
 
