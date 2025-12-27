@@ -91,34 +91,34 @@ class DecorateScene {
         // Create a group to hold the pancake stack for easy rotation
         this.pancakeStack = new THREE.Group();
 
-        // Create 3 stacked pancakes
-        const pancakeColors = [0xFFD166, 0xF4C054, 0xE8B445];
-
+        // Create 3 stacked realistic pancakes using the game engine's method
         for (let i = 0; i < 3; i++) {
-            const geometry = new THREE.CylinderGeometry(1.4 - i * 0.05, 1.5 - i * 0.05, 0.22, 32);
-            const material = new THREE.MeshStandardMaterial({
-                color: pancakeColors[i],
-                roughness: 0.7,
-                metalness: 0.1
-            });
-            const pancake = new THREE.Mesh(geometry, material);
-            pancake.position.y = 0.25 + i * 0.22;
-            pancake.castShadow = true;
-            pancake.receiveShadow = true;
+            const radius = 1.4 - i * 0.05;
+            const height = 0.22;
+
+            // Use the game engine's realistic pancake mesh creator
+            const pancake = this.gameEngine.createRealisticPancakeMesh(radius, height);
+            pancake.position.y = 0.25 + i * 0.23;
+            pancake.rotation.y = Math.random() * Math.PI * 2; // Random rotation for variety
             this.pancakeStack.add(pancake);
         }
 
         // Add a pat of butter on top
         const butterGeometry = new THREE.BoxGeometry(0.4, 0.15, 0.4);
         const butterMaterial = new THREE.MeshStandardMaterial({
-            color: 0xFFEB99,
-            roughness: 0.4,
-            metalness: 0.2
+            color: 0xFFF4B8,
+            roughness: 0.3,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.95
         });
         const butter = new THREE.Mesh(butterGeometry, butterMaterial);
-        butter.position.y = 0.25 + 3 * 0.22 + 0.08;
+        butter.position.y = 0.25 + 3 * 0.23 + 0.08;
         butter.rotation.y = Math.PI / 6;
         butter.castShadow = true;
+
+        // Round the butter edges slightly
+        butter.scale.set(1, 0.8, 1);
         this.pancakeStack.add(butter);
 
         this.gameEngine.scene.add(this.pancakeStack);

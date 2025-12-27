@@ -206,16 +206,10 @@ class GameEngine {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // Helper method to create pancake geometry
-    createPancake(radius = 1, height = 0.2, color = 0xFFD166) {
-        // Three.js mesh
-        const geometry = new THREE.CylinderGeometry(radius, radius, height, 32);
-        const material = new THREE.MeshStandardMaterial({
-            color: color,
-            roughness: 0.7,
-            metalness: 0.1
-        });
-        const mesh = new THREE.Mesh(geometry, material);
+    // Helper method to create realistic pancake geometry
+    createPancake(radius = 1, height = 0.2) {
+        // Create realistic pancake mesh with irregular edges and domed surface
+        const mesh = this.createRealisticPancakeMesh(radius, height);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
 
@@ -225,11 +219,170 @@ class GameEngine {
             mass: 1,
             shape: shape,
             material: this.pancakePhysicsMaterial,
-            linearDamping: 0.5, // Higher damping - pancakes slow down quickly, floppy feel
-            angularDamping: 0.7 // Higher angular damping - less spinning, more floppy
+            linearDamping: 0.5,
+            angularDamping: 0.7
         });
 
         return { mesh, body };
+    }
+
+    // Create a realistic looking pancake mesh
+    createRealisticPancakeMesh(radius, height) {
+        const segments = 48;
+        const geometry = new THREE.CylinderGeometry(radius, radius * 1.02, height, segments, 1, false);
+
+        // Modify vertices for irregular edges and slight dome
+        const positions = geometry.attributes.position;
+        const vertex = new THREE.Vector3();
+
+        for (let i = 0; i < positions.count; i++) {
+            vertex.fromBufferAttribute(positions, i);
+
+            // Calculate distance from center
+            const distFromCenter = Math.sqrt(vertex.x * vertex.x + vertex.z * vertex.z);
+            const angle = Math.atan2(vertex.z, vertex.x);
+
+            // Add irregular edges (wavy outline)
+            if (distFromCenter > radius * 0.5) {
+                const edgeNoise = 0.03 * Math.sin(angle * 8) + 0.02 * Math.sin(angle * 13 + 1.5);
+                const scaleFactor = 1 + edgeNoise * (distFromCenter / radius);
+                vertex.x *= scaleFactor;
+                vertex.z *= scaleFactor;
+            }
+
+            // Add slight dome to top surface
+            if (vertex.y > 0) {
+                const domeHeight = 0.015 * (1 - Math.pow(distFromCenter / radius, 2));
+                vertex.y += domeHeight;
+            }
+
+            // Add subtle surface bumps (bubbles)
+            if (Math.abs(vertex.y) < height * 0.6) {
+                const bumpNoise = 0.008 * Math.sin(vertex.x * 15) * Math.cos(vertex.z * 15);
+                vertex.y += bumpNoise;
+            }
+
+            positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        }
+
+        geometry.computeVertexNormals();
+
+        // Create realistic pancake material with procedural browning
+        const material = this.createPancakeMaterial(radius);
+
+        return new THREE.Mesh(geometry, material);
+    }
+
+    // Create a procedural pancake material with browning pattern
+    createPancakeMaterial(radius) {
+        // Create a canvas for the pancake texture
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+
+        // Base color - golden pancake
+        const baseColor = '#E8B85C';
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Add browning pattern (darker ring around edges, lighter center)
+        const centerX = 256;
+        const centerY = 256;
+
+        // Radial gradient for browning
+        const gradient = ctx.createRadialGradient(centerX, centerY, 50, centerX, centerY, 240);
+        gradient.addColorStop(0, 'rgba(245, 200, 120, 0.8)');    // Light golden center
+        gradient.addColorStop(0.5, 'rgba(220, 165, 80, 0.6)');   // Medium
+        gradient.addColorStop(0.75, 'rgba(180, 120, 50, 0.7)');  // Darker ring
+        gradient.addColorStop(1, 'rgba(140, 90, 40, 0.9)');      // Dark edge
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Add bubble marks (small darker circles)
+        ctx.fillStyle = 'rgba(160, 100, 40, 0.3)';
+        for (let i = 0; i < 60; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 180 + 30;
+            const x = centerX + Math.cos(angle) * dist;
+            const y = centerY + Math.sin(angle) * dist;
+            const bubbleRadius = Math.random() * 15 + 5;
+
+            ctx.beginPath();
+            ctx.arc(x, y, bubbleRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Add some lighter spots (butter/oil spots)
+        ctx.fillStyle = 'rgba(255, 220, 150, 0.25)';
+        for (let i = 0; i < 20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 150;
+            const x = centerX + Math.cos(angle) * dist;
+            const y = centerY + Math.sin(angle) * dist;
+            const spotRadius = Math.random() * 20 + 8;
+
+            ctx.beginPath();
+            ctx.arc(x, y, spotRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Add subtle noise texture
+        const imageData = ctx.getImageData(0, 0, 512, 512);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const noise = (Math.random() - 0.5) * 15;
+            data[i] = Math.max(0, Math.min(255, data[i] + noise));
+            data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+            data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        // Create texture from canvas
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        // Create bump map for surface detail
+        const bumpCanvas = document.createElement('canvas');
+        bumpCanvas.width = 256;
+        bumpCanvas.height = 256;
+        const bumpCtx = bumpCanvas.getContext('2d');
+
+        // Base gray
+        bumpCtx.fillStyle = '#808080';
+        bumpCtx.fillRect(0, 0, 256, 256);
+
+        // Add bubble bumps
+        for (let i = 0; i < 80; i++) {
+            const x = Math.random() * 256;
+            const y = Math.random() * 256;
+            const bubbleRadius = Math.random() * 8 + 3;
+
+            const bumpGrad = bumpCtx.createRadialGradient(x, y, 0, x, y, bubbleRadius);
+            bumpGrad.addColorStop(0, 'rgba(100, 100, 100, 0.5)');
+            bumpGrad.addColorStop(1, 'rgba(128, 128, 128, 0)');
+
+            bumpCtx.fillStyle = bumpGrad;
+            bumpCtx.beginPath();
+            bumpCtx.arc(x, y, bubbleRadius, 0, Math.PI * 2);
+            bumpCtx.fill();
+        }
+
+        const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+
+        // Create material with all textures
+        const material = new THREE.MeshStandardMaterial({
+            map: texture,
+            bumpMap: bumpTexture,
+            bumpScale: 0.02,
+            roughness: 0.85,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+        });
+
+        return material;
     }
 
     // Helper method to create ground/platform
