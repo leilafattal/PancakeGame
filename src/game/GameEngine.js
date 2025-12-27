@@ -127,10 +127,10 @@ class GameEngine {
             this.pancakePhysicsMaterial,
             this.pancakePhysicsMaterial,
             {
-                friction: 0.95, // High friction so they stick together
-                restitution: 0.01, // Almost no bounce when pancakes hit each other
-                contactEquationStiffness: 1e6, // Softer contact (less stiff)
-                contactEquationRelaxation: 5 // More relaxed = softer feel
+                friction: 0.98, // Very high friction so they stick and flop together
+                restitution: 0.0, // Zero bounce - just flop onto each other
+                contactEquationStiffness: 1e5, // Very soft contact
+                contactEquationRelaxation: 10 // Very relaxed = floppy feel
             }
         );
         this.physicsWorld.addContactMaterial(pancakePancakeContact);
@@ -225,8 +225,8 @@ class GameEngine {
             mass: 1,
             shape: shape,
             material: this.pancakePhysicsMaterial,
-            linearDamping: 0.3, // Slow down movement - soft and floppy feel
-            angularDamping: 0.5 // Slow down rotation - less rigid spinning
+            linearDamping: 0.5, // Higher damping - pancakes slow down quickly, floppy feel
+            angularDamping: 0.7 // Higher angular damping - less spinning, more floppy
         });
 
         return { mesh, body };
