@@ -71,17 +71,9 @@ class ClassicStackScene {
     }
 
     createDropLine() {
-        // Create a red line to show where pancakes drop from
-        const lineWidth = 6; // Fits within the walls (walls at 4 from center)
-        const lineGeometry = new THREE.BoxGeometry(lineWidth, 0.05, 0.1);
-        const lineMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff0000,
-            transparent: true,
-            opacity: 0.7
-        });
-        this.dropLine = new THREE.Mesh(lineGeometry, lineMaterial);
-        this.dropLine.position.set(0, this.lastStackHeight + this.dropLineHeight, 0);
-        this.gameEngine.scene.add(this.dropLine);
+        // Drop line is now invisible - no visual indicator needed
+        // Keep the logic for positioning pancakes at the right height
+        this.dropLine = null;
     }
 
     updateDropLinePosition() {
