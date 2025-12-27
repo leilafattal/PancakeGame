@@ -44,7 +44,7 @@ class ClassicStackScene {
 
         // Walls
         this.walls = [];
-        this.wallBounce = 0.8; // How bouncy the walls are (0-1)
+        this.wallBounce = 0.3; // Low bounce - pancakes are soft and don't have much elasticity
     }
 
     init() {

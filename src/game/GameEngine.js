@@ -117,9 +117,23 @@ class GameEngine {
         this.physicsWorld.allowSleep = true;
 
         // Create shared physics materials for consistent contact behavior
+        // Pancakes are soft and floppy - high friction, very low bounce
         this.pancakePhysicsMaterial = new CANNON.Material('pancake');
-        this.pancakePhysicsMaterial.friction = 0.8;
-        this.pancakePhysicsMaterial.restitution = 0.1;
+        this.pancakePhysicsMaterial.friction = 0.9;
+        this.pancakePhysicsMaterial.restitution = 0.02; // Almost no bounce - soft and floppy
+
+        // Create pancake-to-pancake contact material for soft stacking
+        const pancakePancakeContact = new CANNON.ContactMaterial(
+            this.pancakePhysicsMaterial,
+            this.pancakePhysicsMaterial,
+            {
+                friction: 0.95, // High friction so they stick together
+                restitution: 0.01, // Almost no bounce when pancakes hit each other
+                contactEquationStiffness: 1e6, // Softer contact (less stiff)
+                contactEquationRelaxation: 5 // More relaxed = softer feel
+            }
+        );
+        this.physicsWorld.addContactMaterial(pancakePancakeContact);
     }
 
     start() {
@@ -210,7 +224,9 @@ class GameEngine {
         const body = new CANNON.Body({
             mass: 1,
             shape: shape,
-            material: this.pancakePhysicsMaterial
+            material: this.pancakePhysicsMaterial,
+            linearDamping: 0.3, // Slow down movement - soft and floppy feel
+            angularDamping: 0.5 // Slow down rotation - less rigid spinning
         });
 
         return { mesh, body };
