@@ -117,7 +117,7 @@ class ClassicStackScene {
         const wallMaterial = new THREE.MeshStandardMaterial({
             color: 0xff6b6b,
             transparent: true,
-            opacity: 0.3
+            opacity: 0.0 // Fully transparent - invisible walls
         });
         const leftWallMesh = new THREE.Mesh(leftWallGeometry, wallMaterial);
         leftWallMesh.position.set(-wallDistance, wallHeight / 2, 0);
