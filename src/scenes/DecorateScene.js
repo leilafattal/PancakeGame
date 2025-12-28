@@ -625,6 +625,29 @@ class DecorateScene {
         }
     }
 
+    getNozzlePosition() {
+        // Get the world position of the bottle's nozzle/spout
+        const bottle = this.selectedBottle;
+        const type = this.currentTool;
+
+        // Local nozzle offset based on bottle type (when tilted)
+        let nozzleOffset;
+        if (type === 'syrup') {
+            // Syrup bottle cap is at top
+            nozzleOffset = new THREE.Vector3(0, 1.25, 0.3);
+        } else if (type === 'cream') {
+            // Cream can nozzle is at an angle
+            nozzleOffset = new THREE.Vector3(0.15, 1.2, 0.2);
+        } else {
+            // Sprinkle shaker
+            nozzleOffset = new THREE.Vector3(0, 0.85, 0.2);
+        }
+
+        // Apply bottle's rotation and position
+        nozzleOffset.applyQuaternion(bottle.quaternion);
+        return new THREE.Vector3().copy(bottle.position).add(nozzleOffset);
+    }
+
     animateBottlePour(targetPoint) {
         if (this.isPouringAnimation) return;
         this.isPouringAnimation = true;
@@ -637,8 +660,8 @@ class DecorateScene {
         // Move bottle above pour point and tilt it
         const pourPos = {
             x: targetPoint.x,
-            y: 3,
-            z: targetPoint.z + 1
+            y: 3.5,
+            z: targetPoint.z + 1.5
         };
 
         let frame = 0;
@@ -652,7 +675,7 @@ class DecorateScene {
             bottle.position.x = origPos.x + (pourPos.x - origPos.x) * easeT;
             bottle.position.y = origPos.y + (pourPos.y - origPos.y) * easeT;
             bottle.position.z = origPos.z + (pourPos.z - origPos.z) * easeT;
-            bottle.rotation.x = easeT * Math.PI / 4;
+            bottle.rotation.x = easeT * Math.PI / 3; // Tilt more for better pour angle
 
             if (frame < totalFrames) {
                 requestAnimationFrame(animateToPour);
@@ -671,7 +694,7 @@ class DecorateScene {
                         bottle.position.x = pourPos.x + (origPos.x - pourPos.x) * easeRt;
                         bottle.position.y = pourPos.y + (origPos.y - pourPos.y) * easeRt;
                         bottle.position.z = pourPos.z + (origPos.z - pourPos.z) * easeRt;
-                        bottle.rotation.x = (1 - easeRt) * Math.PI / 4;
+                        bottle.rotation.x = (1 - easeRt) * Math.PI / 3;
 
                         if (returnFrame < returnFrames) {
                             requestAnimationFrame(animateReturn);
@@ -704,77 +727,101 @@ class DecorateScene {
     }
 
     pourWhippedCream(targetPoint, onComplete) {
-        const startY = 2.5;
-        const particles = [];
-        const numParticles = 15;
+        // Create a continuous flowing cream stream from the nozzle
+        const nozzlePos = this.getNozzlePosition();
+        const streamSegments = [];
+        const creamMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFFFEFA,
+            roughness: 0.9,
+            metalness: 0.0
+        });
 
-        for (let i = 0; i < numParticles; i++) {
-            const size = 0.08 + Math.random() * 0.06;
-            const geometry = new THREE.SphereGeometry(size, 8, 8);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xFFFEFA,
-                roughness: 0.9,
-                metalness: 0.0
-            });
-            const particle = new THREE.Mesh(geometry, material);
+        // Create the flowing stream as connected segments
+        const numSegments = 12;
+        const streamDuration = 60; // frames
+        let streamFrame = 0;
+        let segmentIndex = 0;
 
-            particle.position.set(
-                targetPoint.x + (Math.random() - 0.5) * 0.1,
-                startY + i * 0.1,
-                targetPoint.z + (Math.random() - 0.5) * 0.1
-            );
-
-            particle.userData = {
-                velocity: new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.02,
-                    -0.15 - Math.random() * 0.05,
-                    (Math.random() - 0.5) * 0.02
-                ),
-                targetY: targetPoint.y + 0.1 + Math.random() * 0.15,
-                landed: false,
-                delay: i * 30
+        // Pre-create segments for the stream
+        for (let i = 0; i < numSegments; i++) {
+            const geometry = new THREE.SphereGeometry(0.06, 8, 8);
+            const segment = new THREE.Mesh(geometry, creamMaterial);
+            segment.visible = false;
+            segment.userData = {
+                active: false,
+                progress: 0,
+                startPos: null,
+                landed: false
             };
-
-            this.gameEngine.scene.add(particle);
-            particles.push(particle);
+            this.gameEngine.scene.add(segment);
+            streamSegments.push(segment);
         }
 
-        const animateCream = () => {
-            let allLanded = true;
+        // Create flowing stream effect
+        const animateStream = () => {
+            streamFrame++;
+            const nozzle = this.getNozzlePosition();
 
-            particles.forEach((p) => {
-                if (p.userData.delay > 0) {
-                    p.userData.delay--;
-                    p.visible = false;
-                    allLanded = false;
-                    return;
-                }
-                p.visible = true;
+            // Spawn new segments periodically
+            if (streamFrame % 5 === 0 && segmentIndex < numSegments) {
+                const seg = streamSegments[segmentIndex];
+                seg.visible = true;
+                seg.userData.active = true;
+                seg.userData.progress = 0;
+                seg.userData.startPos = nozzle.clone();
+                seg.position.copy(nozzle);
+                segmentIndex++;
+            }
 
-                if (!p.userData.landed) {
-                    allLanded = false;
-                    p.userData.velocity.y -= 0.008;
-                    p.position.add(p.userData.velocity);
+            // Animate all active segments flowing down
+            let allDone = true;
+            streamSegments.forEach((seg) => {
+                if (!seg.userData.active) return;
 
-                    if (p.position.y <= p.userData.targetY) {
-                        p.position.y = p.userData.targetY;
-                        p.userData.landed = true;
-                        p.scale.set(1.3, 0.6, 1.3);
-                        p.userData.attachedToPancake = true;
-                        this.decorations.push(p);
+                if (!seg.userData.landed) {
+                    allDone = false;
+                    seg.userData.progress += 0.08;
+                    const p = Math.min(seg.userData.progress, 1);
+
+                    // Smooth curve from nozzle to target
+                    const startPos = seg.userData.startPos;
+                    const easeP = p * p; // Accelerate as it falls
+
+                    // Bezier-like curve for natural flow
+                    const midY = (startPos.y + targetPoint.y) / 2 + 0.5;
+                    const t = p;
+                    const oneMinusT = 1 - t;
+
+                    seg.position.x = oneMinusT * startPos.x + t * targetPoint.x;
+                    seg.position.z = oneMinusT * startPos.z + t * targetPoint.z;
+                    seg.position.y = oneMinusT * oneMinusT * startPos.y +
+                                     2 * oneMinusT * t * midY +
+                                     t * t * (targetPoint.y + 0.1);
+
+                    // Scale up as it lands
+                    const scale = 1 + easeP * 0.5;
+                    seg.scale.set(scale, scale * (1 - easeP * 0.3), scale);
+
+                    if (p >= 1) {
+                        seg.userData.landed = true;
+                        seg.position.y = targetPoint.y + 0.08;
+                        seg.scale.set(1.4, 0.5, 1.4);
+                        seg.userData.attachedToPancake = true;
+                        this.decorations.push(seg);
                     }
                 }
             });
 
-            if (!allLanded) {
-                requestAnimationFrame(animateCream);
+            if (!allDone || streamFrame < streamDuration) {
+                requestAnimationFrame(animateStream);
             } else {
+                // Create final cream dollop
                 this.createCreamDollop(targetPoint);
                 if (onComplete) onComplete();
             }
         };
 
-        animateCream();
+        animateStream();
     }
 
     createCreamDollop(position) {
@@ -813,71 +860,137 @@ class DecorateScene {
     }
 
     pourSyrup(targetPoint, onComplete) {
-        const startY = 2.5;
-        const streamLength = 20;
-        const particles = [];
+        // Create a continuous flowing syrup stream from the nozzle
+        const syrupMaterial = new THREE.MeshStandardMaterial({
+            color: 0xC06000,
+            roughness: 0.05,
+            metalness: 0.8,
+            transparent: true,
+            opacity: 0.9
+        });
 
-        for (let i = 0; i < streamLength; i++) {
-            const geometry = new THREE.SphereGeometry(0.06 + Math.random() * 0.03, 8, 8);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xD2691E,
-                roughness: 0.1,
-                metalness: 0.7,
-                transparent: true,
-                opacity: 0.9
-            });
-            const drop = new THREE.Mesh(geometry, material);
+        // Create the main flowing stream cylinder that stretches
+        const streamGeometry = new THREE.CylinderGeometry(0.03, 0.05, 1, 8);
+        const stream = new THREE.Mesh(streamGeometry, syrupMaterial);
+        stream.visible = false;
+        this.gameEngine.scene.add(stream);
 
-            drop.position.set(targetPoint.x, startY + i * 0.12, targetPoint.z);
+        // Pool of syrup droplets for the stream
+        const streamDrops = [];
+        const numDrops = 15;
+
+        for (let i = 0; i < numDrops; i++) {
+            const dropGeom = new THREE.SphereGeometry(0.04, 8, 8);
+            const drop = new THREE.Mesh(dropGeom, syrupMaterial);
+            drop.visible = false;
             drop.userData = {
-                velocity: new THREE.Vector3(0, -0.2, 0),
-                landed: false,
-                delay: i * 25,
-                stretch: 1
+                active: false,
+                progress: 0,
+                startPos: null,
+                landed: false
             };
-
             this.gameEngine.scene.add(drop);
-            particles.push(drop);
+            streamDrops.push(drop);
         }
 
-        const animateSyrup = () => {
-            let allLanded = true;
+        const streamDuration = 80;
+        let streamFrame = 0;
+        let dropIndex = 0;
 
-            particles.forEach((p) => {
-                if (p.userData.delay > 0) {
-                    p.userData.delay--;
-                    p.visible = false;
-                    allLanded = false;
-                    return;
-                }
-                p.visible = true;
+        const animateStream = () => {
+            streamFrame++;
+            const nozzle = this.getNozzlePosition();
 
-                if (!p.userData.landed) {
-                    allLanded = false;
-                    p.userData.velocity.y -= 0.012;
-                    p.position.add(p.userData.velocity);
-                    p.userData.stretch = Math.min(p.userData.stretch + 0.05, 2);
-                    p.scale.set(0.8, p.userData.stretch, 0.8);
+            // Show and animate the main stream cylinder
+            if (streamFrame > 5 && streamFrame < streamDuration - 20) {
+                stream.visible = true;
 
-                    if (p.position.y <= targetPoint.y + 0.1) {
-                        p.position.y = targetPoint.y + 0.02;
-                        p.userData.landed = true;
-                        p.scale.set(1.5, 0.3, 1.5);
-                        p.userData.attachedToPancake = true;
-                        this.decorations.push(p);
+                // Position stream between nozzle and landing point
+                const streamMid = new THREE.Vector3(
+                    (nozzle.x + targetPoint.x) / 2,
+                    (nozzle.y + targetPoint.y) / 2,
+                    (nozzle.z + targetPoint.z) / 2
+                );
+                stream.position.copy(streamMid);
+
+                // Calculate stream length and rotation
+                const direction = new THREE.Vector3().subVectors(targetPoint, nozzle);
+                const length = direction.length();
+                stream.scale.set(1, length, 1);
+
+                // Point stream toward target
+                stream.lookAt(targetPoint);
+                stream.rotateX(Math.PI / 2);
+
+                // Add slight wobble
+                stream.position.x += Math.sin(streamFrame * 0.3) * 0.02;
+                stream.position.z += Math.cos(streamFrame * 0.3) * 0.02;
+            } else {
+                stream.visible = false;
+            }
+
+            // Spawn drops that flow along the stream
+            if (streamFrame % 5 === 0 && dropIndex < numDrops && streamFrame < streamDuration - 10) {
+                const drop = streamDrops[dropIndex];
+                drop.visible = true;
+                drop.userData.active = true;
+                drop.userData.progress = 0;
+                drop.userData.startPos = nozzle.clone();
+                drop.position.copy(nozzle);
+                drop.scale.set(0.8, 1.2, 0.8); // Slightly stretched
+                dropIndex++;
+            }
+
+            // Animate drops flowing down
+            let allDone = true;
+            streamDrops.forEach((drop) => {
+                if (!drop.userData.active) return;
+
+                if (!drop.userData.landed) {
+                    allDone = false;
+                    drop.userData.progress += 0.06;
+                    const p = Math.min(drop.userData.progress, 1);
+
+                    const startPos = drop.userData.startPos;
+
+                    // Smooth arc from nozzle to target
+                    const t = p;
+                    const easeT = t * t * (3 - 2 * t); // Smoothstep
+
+                    drop.position.x = startPos.x + (targetPoint.x - startPos.x) * easeT +
+                                      Math.sin(t * Math.PI) * 0.05;
+                    drop.position.z = startPos.z + (targetPoint.z - startPos.z) * easeT;
+
+                    // Accelerating fall with slight arc
+                    const fallCurve = t * t;
+                    drop.position.y = startPos.y + (targetPoint.y + 0.05 - startPos.y) * fallCurve;
+
+                    // Stretch as it falls
+                    const stretch = 1 + t * 0.8;
+                    drop.scale.set(0.8, stretch, 0.8);
+
+                    if (p >= 1) {
+                        drop.userData.landed = true;
+                        drop.position.y = targetPoint.y + 0.03;
+                        drop.scale.set(1.3, 0.4, 1.3);
+                        drop.userData.attachedToPancake = true;
+                        this.decorations.push(drop);
                     }
                 }
             });
 
-            if (!allLanded) {
-                requestAnimationFrame(animateSyrup);
+            if (!allDone || streamFrame < streamDuration) {
+                requestAnimationFrame(animateStream);
             } else {
+                // Remove the stream cylinder
+                this.gameEngine.scene.remove(stream);
+                // Create final puddle
                 this.createSyrupPuddle(targetPoint);
                 if (onComplete) onComplete();
             }
         };
 
-        animateSyrup();
+        animateStream();
     }
 
     createSyrupPuddle(position) {
@@ -939,9 +1052,13 @@ class DecorateScene {
     dropSprinkles(targetPoint, onComplete) {
         const colors = [0xFF6B9D, 0x4ECDC4, 0xFFE66D, 0x95E1D3, 0xFF8C42, 0xA855F7];
         const numSprinkles = 25;
-        const startY = 2.5;
         const particles = [];
 
+        const spawnDuration = 40;
+        let spawnFrame = 0;
+        let spawnIndex = 0;
+
+        // Pre-create all sprinkles
         for (let i = 0; i < numSprinkles; i++) {
             const geometry = new THREE.CylinderGeometry(0.015, 0.015, 0.08, 6);
             const material = new THREE.MeshStandardMaterial({
@@ -950,13 +1067,7 @@ class DecorateScene {
                 metalness: 0.3
             });
             const sprinkle = new THREE.Mesh(geometry, material);
-
-            const spread = 0.6;
-            sprinkle.position.set(
-                targetPoint.x + (Math.random() - 0.5) * spread,
-                startY + Math.random() * 0.5,
-                targetPoint.z + (Math.random() - 0.5) * spread
-            );
+            sprinkle.visible = false;
 
             sprinkle.rotation.set(
                 Math.random() * Math.PI,
@@ -966,17 +1077,16 @@ class DecorateScene {
 
             sprinkle.userData = {
                 velocity: new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.03,
-                    -0.05 - Math.random() * 0.03,
-                    (Math.random() - 0.5) * 0.03
+                    (Math.random() - 0.5) * 0.06,
+                    -0.02,
+                    (Math.random() - 0.5) * 0.06
                 ),
                 rotationSpeed: new THREE.Vector3(
                     (Math.random() - 0.5) * 0.2,
                     (Math.random() - 0.5) * 0.2,
                     (Math.random() - 0.5) * 0.2
                 ),
-                landed: false,
-                delay: Math.floor(Math.random() * 15),
+                active: false,
                 bounce: 2
             };
 
@@ -985,16 +1095,27 @@ class DecorateScene {
         }
 
         const animateSprinkles = () => {
+            spawnFrame++;
+            const nozzle = this.getNozzlePosition();
+
+            // Spawn sprinkles from the shaker nozzle
+            if (spawnFrame % 2 === 0 && spawnIndex < numSprinkles) {
+                const p = particles[spawnIndex];
+                p.visible = true;
+                p.userData.active = true;
+                // Start from nozzle with slight random offset
+                p.position.set(
+                    nozzle.x + (Math.random() - 0.5) * 0.1,
+                    nozzle.y,
+                    nozzle.z + (Math.random() - 0.5) * 0.1
+                );
+                spawnIndex++;
+            }
+
             let allSettled = true;
 
             particles.forEach((p) => {
-                if (p.userData.delay > 0) {
-                    p.userData.delay--;
-                    p.visible = false;
-                    allSettled = false;
-                    return;
-                }
-                p.visible = true;
+                if (!p.userData.active) return;
 
                 if (p.userData.bounce > 0) {
                     allSettled = false;
@@ -1024,7 +1145,7 @@ class DecorateScene {
                 }
             });
 
-            if (!allSettled) {
+            if (!allSettled || spawnFrame < spawnDuration) {
                 requestAnimationFrame(animateSprinkles);
             } else {
                 this.createSparkleEffect(targetPoint);
